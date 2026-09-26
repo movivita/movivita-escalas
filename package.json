@@ -1,0 +1,19 @@
+{
+  "name": "movivita-escalas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Movivita Escalas: convites e aceite voluntário de plantões",
+  "scripts": {
+    "dev": "netlify dev",
+    "vapid": "node scripts/gerar-vapid.mjs"
+  },
+  "dependencies": {
+    "@netlify/database": "^2.0.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4"
+  }
+}
