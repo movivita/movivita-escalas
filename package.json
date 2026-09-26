@@ -6,7 +6,8 @@
   "description": "Movivita Escalas: convites e aceite voluntário de plantões",
   "scripts": {
     "dev": "netlify dev",
-    "vapid": "node scripts/gerar-vapid.mjs"
+    "vapid": "node gerar-vapid.mjs",
+    "build": "node montar.mjs"
   },
   "dependencies": {
     "@netlify/database": "^2.0.1",

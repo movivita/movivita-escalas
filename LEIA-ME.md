@@ -15,25 +15,20 @@ Toda ação relevante fica registrada no histórico do plantão, que nunca é ap
 
 ## Publicação (uma vez)
 
-O projeto precisa ser publicado com build, porque instala dependências, cria o banco e aplica a estrutura das tabelas. Arrastar a pasta para o Netlify não funciona.
+Todos os arquivos ficam na raiz do repositório, sem pastas. Na publicação, o Netlify executa `montar.mjs`, que reorganiza os arquivos nas pastas que ele espera (`public` e `netlify`). Por isso o envio pode ser feito pelo navegador do GitHub, arrastando os arquivos.
 
-**Caminho recomendado: GitHub + Netlify**
-
-1. Crie um repositório privado no GitHub e envie o conteúdo desta pasta.
-2. No Netlify, escolha *Add new project → Import an existing project* e selecione o repositório. As configurações já vêm do `netlify.toml`.
-3. Antes do primeiro deploy, cadastre as variáveis de ambiente em *Project configuration → Environment variables*:
+1. No repositório do GitHub, clique em *Add file → Upload files*, arraste **todos os arquivos** deste pacote e confirme em *Commit changes*.
+2. O projeto no Netlify deve estar ligado a esse repositório. As configurações vêm do `netlify.toml`.
+3. Variáveis de ambiente em *Project configuration → Environment variables*:
 
 | Variável | Valor |
 |---|---|
-| `SETUP_TOKEN` | Um código secreto qualquer, usado só no primeiro acesso da Coordenação |
+| `SETUP_TOKEN` | Código secreto usado só no primeiro acesso da Coordenação |
 | `VAPID_PUBLIC_KEY` | Gerada pelo comando `npm run vapid` |
 | `VAPID_PRIVATE_KEY` | Gerada pelo comando `npm run vapid` (marque como secreta) |
-| `VAPID_SUBJECT` | `mailto:` seguido do e-mail da Movivita |
+| `VAPID_SUBJECT` | Endereço do site da Movivita ou `mailto:` com o e-mail da Movivita |
 
-4. Faça o deploy. O Netlify Database é criado automaticamente, e a estrutura em `netlify/database/migrations` é aplicada antes de o site ficar no ar.
-5. Configure o subdomínio (ex.: `escala.movivita.com.br`) em *Domain management*.
-
-**Alternativa: Netlify CLI**, na pasta do projeto: `npm install`, `npx netlify login`, `npx netlify init` e `npx netlify deploy --build --prod`.
+4. O banco (Netlify Database) é criado automaticamente, e as tabelas são criadas na primeira vez que o sistema é usado, sem apagar dados existentes.
 
 Sem as chaves VAPID, o sistema funciona normalmente, apenas sem os avisos no celular.
 

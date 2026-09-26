@@ -1,4 +1,5 @@
 [build]
+  command = "node montar.mjs"
   publish = "public"
 
 [functions]
