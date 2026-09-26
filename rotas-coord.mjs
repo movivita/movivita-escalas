@@ -557,10 +557,27 @@ export function registrar(rota) {
   rota("POST", "/coord/coordenadores", "coord", async ({ body }) => {
     const nome = texto(body.nome, "o nome", { max: 80 });
     const email = texto(body.email, "o e-mail", { max: 120 }).toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Erro(400, "Informe um e-mail válido.");
     if (String(body.senha || "").length < 8) throw new Erro(400, "A senha provisória precisa ter pelo menos 8 caracteres.");
     if (await um("SELECT 1 FROM coordenadores WHERE email=$1", [email])) throw new Erro(409, "Este e-mail já tem acesso.");
     await q("INSERT INTO coordenadores (nome, email, senha_hash) VALUES ($1,$2,$3)", [nome, email, gerarHash(body.senha)]);
     return { ok: true, mensagem: `Acesso criado para ${nome}.` };
+  });
+
+  rota("POST", "/coord/coordenadores/:id/excluir", "coord", async ({ params, sessao }) => {
+    const id = inteiro(params.id, 1, 1e9, "Coordenador");
+    if (id === sessao.id) throw new Erro(400, "Você não pode excluir o próprio acesso.");
+    const nome = await transacao(async (tx) => {
+      const c = await tx.um("SELECT nome, email FROM coordenadores WHERE id=$1 FOR UPDATE", [id]);
+      if (!c) throw new Erro(404, "Acesso não encontrado.");
+      const uso = await tx.um("SELECT COUNT(*)::int AS n FROM eventos WHERE autor_tipo='coord' AND autor_id=$1", [id]);
+      if (uso.n > 0) throw new Erro(409, `${c.nome} já registrou ações no histórico e não pode ser excluída. Use Desativar: o acesso deixa de funcionar e o histórico fica preservado.`);
+      await tx.q("DELETE FROM sessoes WHERE tipo='coord' AND usuario_id=$1", [id]);
+      await tx.q("DELETE FROM tentativas WHERE chave=$1", ["email:" + c.email]);
+      await tx.q("DELETE FROM coordenadores WHERE id=$1", [id]);
+      return c.nome;
+    });
+    return { ok: true, mensagem: `Acesso de ${nome} excluído.` };
   });
 
   rota("POST", "/coord/coordenadores/:id/ativo", "coord", async ({ params, body, sessao }) => {

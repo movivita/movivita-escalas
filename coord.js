@@ -427,7 +427,7 @@ async function folhaAjustes() {
     <button class="btn prim full" data-act="salvarConfig" type="button">Salvar ajustes</button>
     <h2>Acessos da Coordenação</h2>
     <div class="card" style="padding:4px 16px">${c.coordenadores.map((x) => `<div class="row"><div><div class="d">${esc(x.nome)}</div><div class="h">${esc(x.email)}</div></div>
-      ${x.email === st.eu.email ? pill("realizado", "Você") : `<button class="mini" data-act="coordAtivo" data-id="${x.id}" data-v="${x.ativo ? 0 : 1}" type="button">${x.ativo ? "Desativar" : "Reativar"}</button>`}</div>`).join("")}</div>
+      ${x.email === st.eu.email ? pill("realizado", "Você") : `<div class="inline" style="gap:6px"><button class="mini" data-act="coordAtivo" data-id="${x.id}" data-v="${x.ativo ? 0 : 1}" type="button">${x.ativo ? "Desativar" : "Reativar"}</button><button class="mini" style="color:var(--red)" data-act="coordExcluirAsk" data-id="${x.id}" data-nome="${esc(x.nome)}" data-email="${esc(x.email)}" type="button">Excluir</button></div>`}</div>`).join("")}</div>
     <div class="grid2"><div class="field"><label for="ncNome">Nome</label><input id="ncNome"></div><div class="field"><label for="ncEmail">E-mail</label><input id="ncEmail" type="email"></div></div>
     <div class="field"><label for="ncSenha">Senha provisória (mínimo de 8 caracteres)</label><input id="ncSenha" type="text" autocomplete="off"></div>
     <button class="btn ghost full" data-act="novoCoord" type="button">Criar acesso</button>
@@ -528,6 +528,12 @@ document.addEventListener("click", (e) => {
       await acao("/coord/coordenadores", { nome: $("#ncNome").value, email: $("#ncEmail").value, senha: $("#ncSenha").value }, { fechar: false });
       await folhaAjustes();
     });
+    case "coordExcluirAsk": return abrirFolha(`<h3>Excluir o acesso de ${esc(t.dataset.nome)}?</h3>
+      <p class="sub">${esc(t.dataset.email)}</p>
+      <p style="margin:0">A exclusão é definitiva e serve para acessos criados por engano. Ela só é possível se esse acesso nunca registrou nenhuma ação no sistema. Caso contrário, use Desativar.</p>
+      <button class="btn prim full" style="background:var(--red)" data-act="coordExcluir" data-id="${id}" type="button">Excluir definitivamente</button>
+      <button class="btn ghost full" data-act="ajustes" type="button">Voltar</button>`);
+    case "coordExcluir": return executar(async () => { await acao(`/coord/coordenadores/${id}/excluir`, {}, { fechar: false }); await folhaAjustes(); });
     case "coordAtivo": return executar(async () => { await acao(`/coord/coordenadores/${id}/ativo`, { ativo: t.dataset.v === "1" }, { fechar: false }); await folhaAjustes(); });
     case "trocarSenha": return executar(() => acao("/coord/senha", { atual: $("#sAtual").value, nova: $("#sNova").value }, { fechar: false }));
   }
