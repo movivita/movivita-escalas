@@ -463,6 +463,41 @@ export function registrar(rota) {
     return { ok: true, pin, mensagem: ativa ? "Cuidadora reativada." : `Cuidadora inativada. Acesso revogado${n ? `; ${n === 1 ? "1 plantão voltou" : n + " plantões voltaram"} para a Coordenação` : ""}.` };
   });
 
+  // Exclusão definitiva só para cadastros sem nenhum registro no histórico (ex.: cadastro feito por engano).
+  // Quem já participou de plantões é apenas inativado, para preservar a trilha de auditoria.
+  rota("POST", "/coord/cuidadoras/:id/excluir", "coord", async ({ params }) => {
+    const id = inteiro(params.id, 1, 1e9, "Cuidadora");
+    const nome = await transacao(async (tx) => {
+      const c = await tx.um("SELECT nome, celular FROM cuidadoras WHERE id=$1 FOR UPDATE", [id]);
+      if (!c) throw new Erro(404, "Cuidadora não encontrada.");
+      const uso = await tx.um(
+        `SELECT (SELECT COUNT(*) FROM plantoes WHERE cuidadora_id=$1)
+              + (SELECT COUNT(*) FROM imprevistos WHERE cuidadora_id=$1)
+              + (SELECT COUNT(*) FROM eventos WHERE autor_tipo='cuid' AND autor_id=$1) AS n`,
+        [id]
+      );
+      if (Number(uso.n) > 0) throw new Erro(409, `${c.nome} já tem plantões no histórico e não pode ser excluída. Use Inativar: o acesso é revogado e o histórico fica preservado.`);
+      await tx.q("DELETE FROM sessoes WHERE tipo='cuid' AND usuario_id=$1", [id]);
+      await tx.q("DELETE FROM tentativas WHERE chave=$1", ["cel:" + c.celular]);
+      await tx.q("DELETE FROM cuidadoras WHERE id=$1", [id]);
+      return c.nome;
+    });
+    return { ok: true, mensagem: `${nome} excluída.` };
+  });
+
+  rota("POST", "/coord/familias/:id/excluir", "coord", async ({ params }) => {
+    const id = inteiro(params.id, 1, 1e9, "Família");
+    const nome = await transacao(async (tx) => {
+      const f = await tx.um("SELECT apelido FROM familias WHERE id=$1 FOR UPDATE", [id]);
+      if (!f) throw new Erro(404, "Família não encontrada.");
+      const uso = await tx.um("SELECT COUNT(*)::int AS n FROM plantoes WHERE familia_id=$1", [id]);
+      if (uso.n > 0) throw new Erro(409, `${f.apelido} já tem plantões registrados e não pode ser excluída. Use Inativar família: o histórico fica preservado.`);
+      await tx.q("DELETE FROM familias WHERE id=$1", [id]);
+      return f.apelido;
+    });
+    return { ok: true, mensagem: `${nome} excluída.` };
+  });
+
   const lerFamilia = (body) => ({
     apelido: texto(body.apelido, "a identificação da família", { max: 60 }),
     bairro: texto(body.bairro, "o bairro", { obrigatorio: false, max: 60 }),

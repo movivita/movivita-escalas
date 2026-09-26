@@ -373,7 +373,8 @@ function folhaCuid(id) {
     ${st.cad.familias.filter((f) => f.ativa).map((f) => `<label class="opt"><span>${esc(f.apelido)} <small>• ${esc(f.bairro)}</small></span><input type="checkbox" class="hf" value="${f.id}" ${c.familias.includes(f.id) ? "checked" : ""} style="width:22px;height:22px;accent-color:var(--roxo)"></label>`).join("") || `<p class="hint">Cadastre uma família primeiro.</p>`}
     <button class="btn prim full" data-act="salvarCuid" data-id="${id || 0}" type="button">${id ? "Salvar" : "Cadastrar e gerar PIN"}</button>
     ${id ? `<div class="grid2"><button class="btn ghost" data-act="pin" data-id="${id}" type="button">Redefinir PIN</button>
-      ${c.ativa ? `<button class="btn ghost" style="color:var(--red)" data-act="inativarCuid" data-id="${id}" type="button">Inativar</button>` : `<button class="btn ghost" data-act="reativarCuid" data-id="${id}" type="button">Reativar</button>`}</div>` : ""}
+      ${c.ativa ? `<button class="btn ghost" style="color:var(--red)" data-act="inativarCuid" data-id="${id}" type="button">Inativar</button>` : `<button class="btn ghost" data-act="reativarCuid" data-id="${id}" type="button">Reativar</button>`}</div>
+      <button class="linkbtn" style="color:var(--red);align-self:flex-start" data-act="excluirAsk" data-tipo="cuid" data-id="${id}" type="button">Excluir cadastro</button>` : ""}
     <button class="btn ghost full" data-act="fechar" type="button">Fechar</button>`);
 }
 
@@ -388,6 +389,7 @@ function folhaFam(id) {
     <div id="fLista" style="display:flex;flex-direction:column;gap:8px">${st.cad.cuidadoras.filter((c) => c.ativa).map((c) => `<label class="opt" data-nome="${esc(norm(c.nome))}"><span>${esc(c.nome)}</span><input type="checkbox" class="hc" value="${c.id}" ${f.cuidadoras.includes(c.id) ? "checked" : ""} style="width:22px;height:22px;accent-color:var(--roxo)"></label>`).join("")}</div>
     <button class="btn prim full" data-act="salvarFam" data-id="${id || 0}" type="button">${id ? "Salvar" : "Cadastrar família"}</button>
     ${id ? (f.ativa ? `<button class="linkbtn" style="color:var(--red);align-self:flex-start" data-act="inativarFam" data-id="${id}" type="button">Inativar família</button>` : `<button class="btn ghost full" data-act="reativarFam" data-id="${id}" type="button">Reativar família</button>`) : ""}
+    ${id ? `<button class="linkbtn" style="color:var(--red);align-self:flex-start" data-act="excluirAsk" data-tipo="fam" data-id="${id}" type="button">Excluir cadastro</button>` : ""}
     <button class="btn ghost full" data-act="fechar" type="button">Fechar</button>`);
   $("#fBusca").addEventListener("input", (e) => {
     const v = norm(e.target.value);
@@ -401,6 +403,15 @@ function folhaPin(nome, pin, novo) {
     <div class="bigpin">${esc(pin)}</div>
     <p class="hint">Anote agora: por segurança, este PIN não aparece de novo. Passe-o à cuidadora pessoalmente ou por mensagem individual, junto com o endereço da Escala (${esc(location.origin)}). Na primeira entrada, ela cria um PIN próprio.</p>
     <button class="btn prim full" data-act="fechar" type="button">Pronto</button>`);
+}
+
+function folhaExcluir(tipo, id) {
+  const nome = tipo === "cuid" ? st.cad.cuidadoras.find((c) => c.id === id)?.nome : st.cad.familias.find((f) => f.id === id)?.apelido;
+  abrirFolha(`<h3>Excluir ${esc(nome)}?</h3>
+    <p style="margin:0">A exclusão é definitiva e serve para cadastros feitos por engano ou de teste. Ela só é possível quando ${tipo === "cuid" ? "a cuidadora nunca participou de nenhum plantão" : "a família não tem nenhum plantão registrado"}.</p>
+    <p class="hint" style="margin:0">Para quem já tem histórico, use ${tipo === "cuid" ? "Inativar" : "Inativar família"}: o acesso deixa de existir e os registros ficam preservados.</p>
+    <button class="btn prim full" style="background:var(--red)" data-act="excluir" data-tipo="${tipo}" data-id="${id}" type="button">Excluir definitivamente</button>
+    <button class="btn ghost full" data-act="fechar" type="button">Cancelar</button>`);
 }
 
 // ---------- ajustes ----------
@@ -507,6 +518,8 @@ document.addEventListener("click", (e) => {
       const r = await acao(`/coord/cuidadoras/${id}/ativa`, { ativa: true }, { fechar: false });
       folhaPin(st.cad.cuidadoras.find((c) => c.id === id)?.nome || "", r.pin, false);
     });
+    case "excluirAsk": return folhaExcluir(t.dataset.tipo, id);
+    case "excluir": return executar(() => acao(t.dataset.tipo === "cuid" ? `/coord/cuidadoras/${id}/excluir` : `/coord/familias/${id}/excluir`, {}));
     case "salvarFam": return executar(() => acao(id ? `/coord/familias/${id}` : "/coord/familias", { apelido: $("#fApelido").value, bairro: $("#fBairro").value, cuidadoras: checados(".hc") }));
     case "inativarFam": return executar(() => acao(`/coord/familias/${id}/ativa`, { ativa: false }));
     case "reativarFam": return executar(() => acao(`/coord/familias/${id}/ativa`, { ativa: true }));
