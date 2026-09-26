@@ -251,7 +251,7 @@ function tratarClique(e) {
   switch (t.dataset.act) {
     case "recarregar": return iniciar();
     case "fechar": return fecharFolha();
-    case "sair": return executar(async () => { await api("/sair", { metodo: "POST" }); dados = null; telaEntrar(); });
+    case "sair": return executar(async () => { await api("/sair", { metodo: "POST", dados: { tipo: "cuid" } }); dados = null; telaEntrar(); });
     case "aceitar": return executar(async () => { const r = await api(`/convites/${id}/aceitar`, { metodo: "POST" }); toast(r.mensagem); await recarregar(); });
     case "recusar": return executar(async () => { const r = await api(`/convites/${id}/recusar`, { metodo: "POST" }); toast(r.mensagem); await recarregar(); });
     case "imprevisto": return folhaImprevisto(id);

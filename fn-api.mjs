@@ -11,9 +11,10 @@ function montarRotas() {
     const re = new RegExp("^" + padrao.replace(/:(\w+)/g, "(?<$1>\\d+)") + "$");
     lista.push({ metodo, re, papel, fn });
   };
-  rota("POST", "/sair", null, async ({ req }) => {
-    await encerrarSessao(req);
-    return { corpo: { ok: true }, cookie: cookieSaida(req) };
+  rota("POST", "/sair", null, async ({ req, body }) => {
+    const tipo = body.tipo === "coord" ? "coord" : "cuid";
+    await encerrarSessao(req, tipo);
+    return { corpo: { ok: true }, cookie: cookieSaida(req, tipo) };
   });
   rotasCuidadora(rota);
   rotasCoord(rota);
@@ -38,14 +39,15 @@ export default async (req) => {
     }
     let sessao = null;
     if (achada.papel) {
-      sessao = await sessaoAtual(req);
       const papelBase = achada.papel.replace("-provisorio", "");
+      sessao = await sessaoAtual(req, papelBase);
       if (!sessao || sessao.tipo !== papelBase) throw new Erro(401, "Sua sessão terminou. Entre novamente.");
       if (papelBase === "cuid" && sessao.provisorio && achada.papel !== "cuid-provisorio") throw new Erro(403, "Crie seu PIN pessoal para continuar.");
     }
     const params = achada.re.exec(caminho).groups || {};
     const r = await achada.fn({ req, url, body, params, sessao });
     if (r && r.cookie) return json(r.corpo, 200, { "set-cookie": r.cookie });
+    if (sessao?.renovacao) return json(r ?? { ok: true }, 200, { "set-cookie": sessao.renovacao });
     return json(r ?? { ok: true });
   } catch (e) {
     if (e instanceof Erro) return json({ erro: e.message }, e.status);

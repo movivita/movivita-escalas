@@ -2,8 +2,11 @@ import { randomBytes, scryptSync, timingSafeEqual, createHash, randomInt } from 
 import { q, um } from "./db.mjs";
 import { Erro } from "./util.mjs";
 
-const COOKIE = "mv_sessao";
-const DURACAO = { cuid: 30 * 24 * 3600e3, coord: 7 * 24 * 3600e3 };
+// Um cookie por perfil: entrar como cuidadora não derruba a sessão da Coordenação no mesmo aparelho.
+const COOKIE = { cuid: "mv_cuid", coord: "mv_coord" };
+// Sessão de 60 dias, renovada automaticamente enquanto o sistema é usado.
+const DURACAO = { cuid: 60 * 24 * 3600e3, coord: 60 * 24 * 3600e3 };
+const RENOVAR_APOS = 24 * 3600e3;
 const MAX_FALHAS = 5;
 const BLOQUEIO_MIN = 15;
 
@@ -66,44 +69,52 @@ export async function criarSessao(tipo, usuarioId, req) {
   await q("INSERT INTO sessoes (token_hash, tipo, usuario_id, expira_em) VALUES ($1,$2,$3,$4)", [sha(token), tipo, usuarioId, expira]);
   await q("DELETE FROM sessoes WHERE expira_em < NOW()");
   await q("INSERT INTO acessos (tipo, usuario_id, acao) VALUES ($1,$2,'entrada')", [tipo, usuarioId]);
-  return cookieSessao(token, expira, req);
+  return cookieSessao(tipo, token, expira, req);
 }
 
 function seguro(req) {
   return new URL(req.url).protocol === "https:";
 }
 
-function cookieSessao(token, expira, req) {
-  return `${COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expira.toUTCString()}${seguro(req) ? "; Secure" : ""}`;
+function cookieSessao(tipo, token, expira, req) {
+  return `${COOKIE[tipo]}=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expira.toUTCString()}${seguro(req) ? "; Secure" : ""}`;
 }
 
-export function cookieSaida(req) {
-  return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT${seguro(req) ? "; Secure" : ""}`;
+export function cookieSaida(req, tipo) {
+  return `${COOKIE[tipo]}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT${seguro(req) ? "; Secure" : ""}`;
 }
 
-function lerToken(req) {
+function lerToken(req, tipo) {
   const c = req.headers.get("cookie") || "";
-  const m = c.split(/;\s*/).find((p) => p.startsWith(COOKIE + "="));
-  return m ? m.slice(COOKIE.length + 1) : null;
+  const m = c.split(/;\s*/).find((p) => p.startsWith(COOKIE[tipo] + "="));
+  return m ? m.slice(COOKIE[tipo].length + 1) : null;
 }
 
-export async function sessaoAtual(req) {
-  const token = lerToken(req);
+// Devolve a sessão do perfil pedido. Quando a sessão já tem mais de um dia, renova o prazo
+// e devolve em `renovacao` o cookie atualizado, para a resposta enviar ao navegador.
+export async function sessaoAtual(req, tipo) {
+  const token = lerToken(req, tipo);
   if (!token) return null;
-  const s = await um("SELECT tipo, usuario_id FROM sessoes WHERE token_hash=$1 AND expira_em > NOW()", [sha(token)]);
+  const s = await um("SELECT tipo, usuario_id, expira_em FROM sessoes WHERE token_hash=$1 AND tipo=$2 AND expira_em > NOW()", [sha(token), tipo]);
   if (!s) return null;
+  let renovacao = null;
+  if (new Date(s.expira_em) - Date.now() < DURACAO[tipo] - RENOVAR_APOS) {
+    const expira = new Date(Date.now() + DURACAO[tipo]);
+    await q("UPDATE sessoes SET expira_em=$1 WHERE token_hash=$2", [expira, sha(token)]);
+    renovacao = cookieSessao(tipo, token, expira, req);
+  }
   if (s.tipo === "cuid") {
     const u = await um("SELECT id, nome, ativa, pin_provisorio FROM cuidadoras WHERE id=$1", [s.usuario_id]);
     if (!u || !u.ativa) return null;
-    return { tipo: "cuid", id: u.id, nome: u.nome, provisorio: u.pin_provisorio, token };
+    return { tipo: "cuid", id: u.id, nome: u.nome, provisorio: u.pin_provisorio, token, renovacao };
   }
   const u = await um("SELECT id, nome, email, ativo FROM coordenadores WHERE id=$1", [s.usuario_id]);
   if (!u || !u.ativo) return null;
-  return { tipo: "coord", id: u.id, nome: u.nome, email: u.email, token };
+  return { tipo: "coord", id: u.id, nome: u.nome, email: u.email, token, renovacao };
 }
 
-export async function encerrarSessao(req) {
-  const token = lerToken(req);
+export async function encerrarSessao(req, tipo) {
+  const token = lerToken(req, tipo);
   if (token) await q("DELETE FROM sessoes WHERE token_hash=$1", [sha(token)]);
 }
 

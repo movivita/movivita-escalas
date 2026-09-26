@@ -466,7 +466,7 @@ document.addEventListener("click", (e) => {
   const id = Number(t.dataset.id);
   switch (t.dataset.act) {
     case "fechar": return fecharFolha();
-    case "sair": return executar(async () => { await api("/sair", { metodo: "POST" }); telaEntrar(); });
+    case "sair": return executar(async () => { await api("/sair", { metodo: "POST", dados: { tipo: "coord" } }); telaEntrar(); });
     case "ajustes": return executar(folhaAjustes);
     case "semAnt": st.semana = addDias(st.semana, -7); return executar(() => carregarSemana());
     case "semProx": st.semana = addDias(st.semana, 7); return executar(() => carregarSemana());
